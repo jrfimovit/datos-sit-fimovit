@@ -506,7 +506,7 @@ html[data-theme="dark"] .comentario-transacciones:empty:before{color:#6b7d88;}
        La hora siempre se expresa en GMT-4 (Rep. Dominicana, todo el año,
        sin horario de verano — Santo Domingo y Santiago de los Caballeros
        comparten el mismo huso horario). -->
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.46</b> · Compilado: 26/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.47</b> · Compilado: 26/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ DASHBOARD ══ -->
@@ -1353,7 +1353,7 @@ function setJStatus(cls,msg){
 // JSON corrupto), se cae de vuelta a la pantalla de carga manual sin
 // romper nada — el drag-and-drop sigue funcionando exactamente igual que
 // antes, como respaldo.
-const JSON_DATA_URL = 'https://datos-fimovit.netlify.app/data_todos.json';
+const JSON_DATA_URL = 'https://dashboard-datos-fimovit.netlify.app/data_todos.json';
 
 async function cargarJsonAutomatico(){
   if(!JSON_DATA_URL) return;   // carga automática desactivada — solo manual
