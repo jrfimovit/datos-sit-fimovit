@@ -506,7 +506,7 @@ html[data-theme="dark"] .comentario-transacciones:empty:before{color:#6b7d88;}
        La hora siempre se expresa en GMT-4 (Rep. Dominicana, todo el año,
        sin horario de verano — Santo Domingo y Santiago de los Caballeros
        comparten el mismo huso horario). -->
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.41</b> · Compilado: 24/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.45</b> · Compilado: 26/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ DASHBOARD ══ -->
@@ -662,6 +662,20 @@ html[data-theme="dark"] .comentario-transacciones:empty:before{color:#6b7d88;}
         <button class="btn-pdf" id="btn-pdf" onclick="expPDF()">📄 PDF</button>
       </div>
     </div>
+
+    <!-- V6.47 — banners de Rango DENTRO de .ctrl-bar (no como hermanos
+         después de ella): así heredan su position:sticky/top:0 "gratis" —
+         quedan fijos junto con el resto de la barra al hacer scroll, sin
+         necesitar medir alturas dinámicas en JS. -->
+    <div id="rango-mes-banner" class="ctrl-row" style="display:none;background:#fff3e0;border:1px solid #f0c987;border-radius:6px;padding:6px 12px;margin:0;font-size:.85rem;color:#7a4a00;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span id="rango-mes-banner-txt"></span>
+      <button class="btn-s" style="padding:2px 10px;" onclick="quitarRangoMes()">Quitar rango</button>
+    </div>
+
+    <div id="rango-anio-banner" class="ctrl-row" style="display:none;background:#fff3e0;border:1px solid #f0c987;border-radius:6px;padding:6px 12px;margin:0;font-size:.85rem;color:#7a4a00;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span id="rango-anio-banner-txt"></span>
+      <button class="btn-s" style="padding:2px 10px;" onclick="quitarRangoAnio()">Quitar rango</button>
+    </div>
   </div>
 
   <div id="comparacion-resultado" style="display:none;padding:16px 0">
@@ -675,16 +689,6 @@ html[data-theme="dark"] .comentario-transacciones:empty:before{color:#6b7d88;}
       <div class="comp-section-title">Línea / Ruta — comparativo</div>
       <table class="comp-table" id="comp-tbl-linea"></table>
     </div>
-  </div>
-
-  <div id="rango-mes-banner" style="display:none;background:#fff3e0;border:1px solid #f0c987;border-radius:6px;padding:6px 12px;margin:0 0 10px;font-size:.85rem;color:#7a4a00;align-items:center;gap:10px;flex-wrap:wrap;">
-    <span id="rango-mes-banner-txt"></span>
-    <button class="btn-s" style="padding:2px 10px;" onclick="quitarRangoMes()">Quitar rango</button>
-  </div>
-
-  <div id="rango-anio-banner" style="display:none;background:#fff3e0;border:1px solid #f0c987;border-radius:6px;padding:6px 12px;margin:0 0 10px;font-size:.85rem;color:#7a4a00;align-items:center;gap:10px;flex-wrap:wrap;">
-    <span id="rango-anio-banner-txt"></span>
-    <button class="btn-s" style="padding:2px 10px;" onclick="quitarRangoAnio()">Quitar rango</button>
   </div>
 
   <!-- PAGE 1 -->
@@ -1271,6 +1275,43 @@ function onJsonDrop(ev){
   document.getElementById('json-card').classList.remove('err');
   loadJsonFile(f);
 }
+// Valida y aplica un JSON ya parseado — compartido entre la carga manual
+// (arrastrar/seleccionar archivo, vía FileReader) y la carga automática
+// (fetch() al Sitio B — ver JSON_DATA_URL más abajo), para que ambos
+// caminos apliquen EXACTAMENTE la misma validación de esquema.
+function aplicarJSONCargado(parsed, origenLabel){
+  // Validación mínima de esquema del JSON generado por generar_json.py
+  if(typeof parsed!=='object' || parsed===null || !parsed.meta || !parsed.agg)
+    throw new Error('Estructura JSON inválida: faltan las secciones "meta" y/o "agg"');
+  if(!Array.isArray(parsed.meta.operadores) || !Array.isArray(parsed.meta.corredores))
+    throw new Error('Estructura JSON inválida: meta.operadores / meta.corredores deben ser listas');
+  if(!Object.keys(parsed.agg).length)
+    throw new Error('El JSON no contiene períodos agregados (agg vacío)');
+  LIVE_DATA = parsed;
+  document.getElementById('json-card').classList.remove('err');
+  document.getElementById('jprog').style.width='100%';
+  const m = parsed.meta;
+  const corrInfo = m.corredores?.length ? `${m.corredores.length} corredor(es)` : '';
+  const perInfo  = m.periods?.length    ? `${m.periods.length} período(s)`      : '';
+  setJStatus('ok',
+    `✅ ${fmt(m.total_rows)} registros · ${corrInfo} · ${perInfo} · Generado: ${m.generated_at||'–'} (${origenLabel})`
+  );
+  document.getElementById('json-card').classList.add('ok');
+  document.getElementById('jbadge').textContent='JSON CARGADO';
+  document.getElementById('jbadge').classList.remove('demo');
+  // Show config info
+  const ferCount  = (parsed.meta.feriados||[]).length;
+  const comCount  = (parsed.meta.comercial||[]).length;
+  const parts = [];
+  if(ferCount)  parts.push(`${ferCount} feriados`);
+  if(comCount)  parts.push(`${comCount} sistemas con histórico comercial`);
+  const cfgMsg = parts.length
+    ? `✅ config_fimovit cargado: ${parts.join(' · ')}`
+    : '';
+  const statusEl = document.getElementById('config-status');
+  if(statusEl && cfgMsg) statusEl.textContent = cfgMsg;
+  setTimeout(()=>{document.getElementById('jprog-wrap').style.display='none';}, 600);
+}
 function loadJsonFile(f){
   setJStatus('', `📂 Leyendo ${f.name}...`);
   document.getElementById('jprog-wrap').style.display='block';
@@ -1286,37 +1327,7 @@ function loadJsonFile(f){
       let parsed;
       try{ parsed = JSON.parse(e.target.result); }
       catch(_){ throw new Error('El archivo no es un JSON válido (¿está corrupto o incompleto?)'); }
-      // Validación mínima de esquema del JSON generado por generar_json.py
-      if(typeof parsed!=='object' || parsed===null || !parsed.meta || !parsed.agg)
-        throw new Error('Estructura JSON inválida: faltan las secciones "meta" y/o "agg"');
-      if(!Array.isArray(parsed.meta.operadores) || !Array.isArray(parsed.meta.corredores))
-        throw new Error('Estructura JSON inválida: meta.operadores / meta.corredores deben ser listas');
-      if(!Object.keys(parsed.agg).length)
-        throw new Error('El JSON no contiene períodos agregados (agg vacío)');
-      LIVE_DATA = parsed;
-      document.getElementById('json-card').classList.remove('err');
-      document.getElementById('jprog').style.width='100%';
-      const m = parsed.meta;
-      const corrInfo = m.corredores?.length ? `${m.corredores.length} corredor(es)` : '';
-      const perInfo  = m.periods?.length    ? `${m.periods.length} período(s)`      : '';
-      setJStatus('ok',
-        `✅ ${fmt(m.total_rows)} registros · ${corrInfo} · ${perInfo} · Generado: ${m.generated_at||'–'}`
-      );
-      document.getElementById('json-card').classList.add('ok');
-      document.getElementById('jbadge').textContent='JSON CARGADO';
-      document.getElementById('jbadge').classList.remove('demo');
-      // Show config info
-      const ferCount  = (parsed.meta.feriados||[]).length;
-      const comCount  = (parsed.meta.comercial||[]).length;
-      const parts = [];
-      if(ferCount)  parts.push(`${ferCount} feriados`);
-      if(comCount)  parts.push(`${comCount} sistemas con histórico comercial`);
-      const cfgMsg = parts.length
-        ? `✅ config_fimovit cargado: ${parts.join(' · ')}`
-        : '';
-      const statusEl = document.getElementById('config-status');
-      if(statusEl && cfgMsg) statusEl.textContent = cfgMsg;
-      setTimeout(()=>{document.getElementById('jprog-wrap').style.display='none';}, 600);
+      aplicarJSONCargado(parsed, f.name);
     }catch(err){
       setJStatus('err','❌ Error: '+err.message);
       document.getElementById('json-card').classList.add('err');
@@ -1331,6 +1342,39 @@ function setJStatus(cls,msg){
   el.className='jstatus'+(cls?' '+cls:'');
   el.textContent=msg;
 }
+
+// ── V6.44 — Carga automática del JSON vía fetch() (Sitio B en Netlify) ──
+// Deja JSON_DATA_URL vacío ('') para desactivar la carga automática y
+// quedarte SOLO con el arrastrar-y-soltar manual de siempre (uso local u
+// offline, ej. abriendo el HTML directo desde el disco). Con una URL
+// puesta, al abrir la página se intenta descargar el JSON automáticamente
+// — sin que nadie tenga que arrastrar ningún archivo. Si falla por
+// cualquier motivo (sin red, CORS mal configurado en el Sitio B, 404,
+// JSON corrupto), se cae de vuelta a la pantalla de carga manual sin
+// romper nada — el drag-and-drop sigue funcionando exactamente igual que
+// antes, como respaldo.
+const JSON_DATA_URL = 'https://fimovit-datos.netlify.app/data_todos.json';
+
+async function cargarJsonAutomatico(){
+  if(!JSON_DATA_URL) return;   // carga automática desactivada — solo manual
+  setJStatus('', `📡 Descargando datos automáticamente...`);
+  document.getElementById('jprog-wrap').style.display='block';
+  document.getElementById('jprog').style.width='30%';
+  try{
+    const resp = await fetch(JSON_DATA_URL, {cache:'no-store'});
+    if(!resp.ok) throw new Error(`HTTP ${resp.status} al descargar el JSON`);
+    document.getElementById('jprog').style.width='70%';
+    const parsed = await resp.json();
+    aplicarJSONCargado(parsed, 'automático');
+    generate();   // entra directo al dashboard, sin esperar clic del usuario
+  }catch(err){
+    // No bloquea nada: el usuario puede arrastrar el archivo a mano abajo.
+    setJStatus('err', `⚠ No se pudo cargar el JSON automáticamente (${err.message}). Puedes arrastrar el archivo manualmente abajo.`);
+    document.getElementById('json-card').classList.add('err');
+    document.getElementById('jprog-wrap').style.display='none';
+  }
+}
+document.addEventListener('DOMContentLoaded', cargarJsonAutomatico);
 
 // ── LOGOS ──
 function onLogo(inp,t){
@@ -5347,6 +5391,16 @@ function setView(v,btn){
     if(normalSel) normalSel.style.display='flex';
     if(rangoWrap) rangoWrap.style.display='none';
     closeRangoPanel();
+    // V6.47 — bug real reportado: hacer clic directo en Día/Mes/Año solo
+    // ocultaba la pastilla/panel de Rango, pero S.rangoMes/S.rangoAnio
+    // seguían activos "por debajo" — getPeriod() seguía filtrando por el
+    // rango viejo aunque la barra ya mostrara los selects normales, sin
+    // ningún indicio visual de que el filtro seguía aplicado. Ahora el
+    // rango se desactiva de verdad (no solo se oculta su UI).
+    S.rangoMes  = {activo:false, desde:null, hasta:null};
+    S.rangoAnio = {activo:false, desde:null, hasta:null};
+    const pillTxt = document.getElementById('rango-pill-txt');
+    if(pillTxt) pillTxt.textContent = 'Elegir rango…';
   }
 
   const sm   = document.getElementById('sel-m');
@@ -6922,6 +6976,16 @@ function aplicarRangoUnificado(){
   if(r.tipo==='dia'){
     aplicarDiaDesdeRango(r.desde);
     setView('dia', tabBtn);
+    // Bug real reportado: setView('dia',...) llama a updateDaySelector()
+    // internamente (línea ~5379), que RECONSTRUYE las <option> de
+    // 'sel-dia' desde cero — eso resetea su .value al primer día del mes
+    // (el navegador selecciona la primera <option> al no haber ninguna
+    // marcada 'selected'), pisando el valor correcto que ya había puesto
+    // aplicarDiaDesdeRango() un momento antes. Como resultado, elegir un
+    // solo día en Rango mostraba siempre el primer día del mes en vez del
+    // día realmente seleccionado. Se vuelve a fijar aquí, DESPUÉS de
+    // setView(), que es quien tiene la última palabra sobre el <select>.
+    document.getElementById('sel-dia').value = r.desde;
   } else if(r.tipo==='mes'){
     S.rangoMes = {activo:true, desde:r.desde, hasta:r.hasta};
     setView('mes', tabBtn);
