@@ -1460,6 +1460,15 @@ function toggleTheme(){
   const dash = document.getElementById('dash');
   if(dash && dash.style.display === 'block'){
     renderAll();
+    // V6.53 — renderAll() vuelve a mostrar '.rpt-page' (redibuja asumiendo
+    // Modo Reportería) sin saber que el usuario puede estar en Modo
+    // Comparación en este momento — sin esto, cambiar de tema mientras se
+    // compara dejaba el informe de Reportería visible por detrás (al hacer
+    // scroll se veían datos que no debían estar ahí, reportado con captura
+    // real). Se vuelve a ocultar si corresponde, igual que hace setModo().
+    if(typeof MODO_ACTUAL !== 'undefined' && MODO_ACTUAL === 'comparacion'){
+      document.querySelectorAll('.rpt-page').forEach(el => el.style.display = 'none');
+    }
   }
 }
 (function initTema(){
@@ -5659,9 +5668,18 @@ function renderKPIOper(p, periodoLabel){
 // (la MISMA lógica de filtrado por día que ya usa la vista Día). Un día en que la
 // selección no tuvo registros simplemente no aporta al promedio de su columna.
 
-// Escala de color blanco → teal → navy (paleta C), t en [0,1]
-function hmColor(t){
-  const stops = [[255,255,255],[0,160,160],[27,58,75]]; // #ffffff → #00a0a0 → #1b3a4b
+// Escala de color, t en [0,1]. Modo claro: blanco → teal → navy (paleta C)
+// — pensada para un fondo de página claro. Modo oscuro (V6.53): gris
+// pizarra oscuro → teal → verde-azulado claro — el degradado de modo
+// claro se pintaba tal cual también en modo oscuro (es un color calculado
+// en JS, ninguna regla CSS de tema oscuro lo toca), dejando celdas de
+// intensidad baja casi blancas incrustadas en una tabla oscura — no
+// "ilegible" celda por celda, pero sí un choque de blancos y grises
+// pizarra que costaba leer en conjunto (reportado por el usuario).
+function hmColor(t, oscuro){
+  const stops = oscuro
+    ? [[28,40,51],[0,160,160],[196,255,244]]   // #1c2833 → #00a0a0 → #c4fff4
+    : [[255,255,255],[0,160,160],[27,58,75]];  // #ffffff → #00a0a0 → #1b3a4b
   const x = Math.max(0, Math.min(1, t)) * 2;
   const i = x < 1 ? 0 : 1;
   const f = x - i;
@@ -5736,13 +5754,19 @@ function renderHeatmap(){
     avgs[h].forEach(v=>{ if(v>maxAvg) maxAvg=v; });
   });
 
+  // V6.53 — colores dependientes del tema actual (ver hmColor()) para que
+  // el mapa de calor no quede con celdas casi blancas incrustadas en una
+  // tabla oscura cuando el usuario tiene el modo oscuro activo.
+  const esOscuro = document.documentElement.dataset.theme === 'dark';
   const DOWS = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
   const rows = horas.map(h=>{
     const cells = avgs[h].map((v,dw)=>{
-      if(!diasPorDow[dw]) return '<td style="background:#f8fafb;color:#b0bec5">–</td>';
+      if(!diasPorDow[dw]) return esOscuro
+        ? '<td style="background:#16212a;color:#5a7482">–</td>'
+        : '<td style="background:#f8fafb;color:#b0bec5">–</td>';
       const t  = maxAvg ? v/maxAvg : 0;
-      const fg = t>0.55 ? '#fff' : C.navy;
-      return `<td style="background:${hmColor(t)};color:${fg}">${v?fmt(Math.round(v)):''}</td>`;
+      const fg = esOscuro ? (t>0.55 ? C.navy : '#dbe4ea') : (t>0.55 ? '#fff' : C.navy);
+      return `<td style="background:${hmColor(t, esOscuro)};color:${fg}">${v?fmt(Math.round(v)):''}</td>`;
     }).join('');
     return `<tr><td class="hm-hora">${esc(h)}</td>${cells}</tr>`;
   }).join('');
@@ -7350,6 +7374,16 @@ function renderRangoCal(){
   const y=RANGO_CAL.y, m=RANGO_CAL.m;
   const grid = document.getElementById('rango-grid');
   if(!grid) return;
+  // V6.53 — 'var(--navy)'/'var(--text2)' son las mismas variables oscuras
+  // en claro Y en oscuro (el tema oscuro se implementa con overrides por
+  // selector, no redefiniendo estas variables — ver ':root' arriba). Como
+  // estos números de día se pintan con estilo INLINE (no una clase CSS que
+  // se pueda sobreescribir), usar 'var(--navy)' los dejaba en texto oscuro
+  // sobre fondo oscuro — invisibles en modo oscuro (reportado con captura
+  // real). Se elige el color a mano según el tema actual.
+  const esOscuro = document.documentElement.dataset.theme === 'dark';
+  const colDisabled = esOscuro ? '#5a7482' : 'var(--text2)';
+  const colEnabled  = esOscuro ? '#dbe4ea' : 'var(--navy)';
   const detailDates = new Set(getAvailableDayDetailDates());
   const aggMonths   = new Set(getAvailableAggMonths());
   grid.innerHTML='';
@@ -7370,10 +7404,10 @@ function renderRangoCal(){
     cell.style.textAlign='center'; cell.style.padding='4px 0';
     cell.style.fontSize='.68rem'; cell.style.borderRadius='3px';
     if(!enabled){
-      cell.style.color='var(--text2)'; cell.style.opacity='.35';
+      cell.style.color=colDisabled; cell.style.opacity='.35';
     } else {
       cell.style.cursor='pointer';
-      cell.style.color = isEdge ? '#fff' : 'var(--navy)';
+      cell.style.color = isEdge ? '#fff' : colEnabled;
       cell.style.background = isEdge ? 'var(--teal)' : (inRange ? 'rgba(0,160,160,.14)' : 'transparent');
       cell.style.fontWeight = isEdge ? '600' : '400';
       if(hasDetail && !isEdge) cell.style.boxShadow='inset 0 -2px 0 -1px var(--teal)';
