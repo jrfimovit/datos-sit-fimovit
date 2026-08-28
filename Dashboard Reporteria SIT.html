@@ -621,11 +621,36 @@ html.pdf-export-desktop .kpi-bar{flex-wrap:nowrap; border-radius:var(--r);}
 html.pdf-export-desktop .kpi-cell{flex:1 1 0; border-right:1px solid rgba(255,255,255,.15); border-bottom:none; padding:13px 10px;}
 html.pdf-export-desktop .kpi-val{font-size:1.45rem;}
 html.pdf-export-desktop .kpi-oper .kpi-cell{flex:1 1 150px;}
+
+/* V6.53 — botón para ocultar/mostrar la barra de control (#ctrl-bar-body)
+   en móvil, donde ocupa buena parte del alto visible de la pantalla.
+   Oculto por defecto (display:none) en escritorio — solo aparece dentro
+   del @media de abajo. */
+.ctrl-bar-toggle-btn{
+  display:none; width:100%; align-items:center; justify-content:space-between;
+  background:transparent; border:none; border-bottom:1px solid var(--border);
+  color:var(--navy); font-size:.82rem; font-weight:700; padding:10px 4px; cursor:pointer;
+}
+html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:#26333d;}
+@media (max-width:760px){
+  .ctrl-bar-toggle-btn{display:flex;}
+  #ctrl-bar.colapsada #ctrl-bar-body{display:none;}
+  #ctrl-bar.colapsada .ctrl-bar-toggle-btn{border-bottom:none;}
+}
 </style>
 </head>
 <body>
 
 <div id="ld"><div class="spin"></div><p id="ld-msg">Procesando...</p></div>
+
+<!-- V6.53 — aviso de "cargando año adicional" (solo móvil, ver
+     asegurarAnioCargado() en el JS). Colores fijos (no usa variables de
+     tema) para que se lea igual en modo claro y oscuro. -->
+<div id="anio-loading-toast" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;
+     background:#123c4d;color:#fff;text-align:center;padding:8px 12px;font-size:.85rem;
+     font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.3)">
+  <span id="anio-loading-txt"></span>
+</div>
 
 <!-- ══ PANTALLA DE CARGA INICIAL (V6.48) ══
      Se muestra por defecto al abrir el HTML mientras cargarJsonAutomatico()
@@ -658,7 +683,7 @@ html.pdf-export-desktop .kpi-oper .kpi-cell{flex:1 1 150px;}
     <div class="login-msg" id="login-msg"></div>
     <button type="submit" class="login-btn" id="login-btn">Iniciar sesión</button>
   </form>
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.52</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.53</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <div id="initial-loading">
@@ -671,7 +696,7 @@ html.pdf-export-desktop .kpi-oper .kpi-cell{flex:1 1 150px;}
     <div class="il-status" id="il-status">📡 Conectando con el servidor de datos...</div>
     <div class="prog-wrap" id="il-prog-wrap"><div class="prog-bar" id="il-prog"></div></div>
   </div>
-  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.52</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.53</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ SETUP ══ -->
@@ -722,7 +747,7 @@ html.pdf-export-desktop .kpi-oper .kpi-cell{flex:1 1 150px;}
        La hora siempre se expresa en GMT-4 (Rep. Dominicana, todo el año,
        sin horario de verano — Santo Domingo y Santiago de los Caballeros
        comparten el mismo huso horario). -->
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.52</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.53</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ DASHBOARD ══ -->
@@ -739,6 +764,13 @@ html.pdf-export-desktop .kpi-oper .kpi-cell{flex:1 1 150px;}
        handler de los controles existentes cambió — solo se reorganizó el
        contenedor. -->
   <div class="ctrl-bar" id="ctrl-bar">
+    <!-- V6.53 — botón solo visible en móvil (ver .ctrl-bar-toggle-btn en el
+         CSS) para ocultar/mostrar el resto de la barra de control, que en
+         pantallas chicas ocupa buena parte del alto visible. -->
+    <button type="button" id="ctrl-bar-toggle" class="ctrl-bar-toggle-btn" onclick="toggleCtrlBar()">
+      <span>☰ Filtros y período</span><span id="ctrl-bar-toggle-icon">▲</span>
+    </button>
+    <div id="ctrl-bar-body">
     <div class="ctrl-row ctrl-row-filtros">
       <div id="ciudad-wrap" style="display:none;">
         <label>Ciudad:</label>
@@ -892,6 +924,7 @@ html.pdf-export-desktop .kpi-oper .kpi-cell{flex:1 1 150px;}
       <span id="rango-anio-banner-txt"></span>
       <button class="btn-s" style="padding:2px 10px;" onclick="quitarRangoAnio()">Quitar rango</button>
     </div>
+    </div><!-- /#ctrl-bar-body -->
   </div>
 
   <div id="comparacion-resultado" style="display:none;padding:16px 0">
@@ -1546,6 +1579,151 @@ function aplicarJSONCargado(parsed, origenLabel){
   if(statusEl && cfgMsg) statusEl.textContent = cfgMsg;
   setTimeout(()=>{document.getElementById('jprog-wrap').style.display='none';}, 600);
 }
+
+// ── V6.53 — Carga bajo demanda de años adicionales (solo móvil) ──
+// En móvil solo se descarga el año actual al abrir el dashboard (ver
+// ES_MOVIL/JSON_DATA_URL más arriba). Cuando el usuario elige un Año/Mes/
+// Rango de un año que todavía no está en memoria, asegurarAnioCargado()
+// descarga ese 'data_{año}.json' puntual y lo fusiona dentro de LIVE_DATA
+// con fusionarAnioEnLiveData() — así nunca se tienen los ~230 MB
+// combinados en memoria a la vez en un iPhone, pero el usuario sigue
+// pudiendo ver cualquier año histórico con solo un par de segundos de
+// espera la primera vez que lo pide (después queda en caché, en
+// ANIOS_CARGADOS, y no se vuelve a descargar).
+
+let _cargaAnioEnCurso = null; // evita descargas duplicadas si el usuario cambia de año varias veces seguidas
+
+function mostrarCargandoAnio(anio){
+  const el  = document.getElementById('anio-loading-toast');
+  const txt = document.getElementById('anio-loading-txt');
+  if(txt) txt.textContent = `⏳ Cargando datos de ${anio}...`;
+  if(el)  el.style.display = 'block';
+}
+function ocultarCargandoAnio(){
+  const el = document.getElementById('anio-loading-toast');
+  if(el) el.style.display = 'none';
+}
+
+// Descarga y fusiona 'data_{anio}.json' si todavía no está cargado. No
+// hace nada si 'anio' ya está en ANIOS_CARGADOS (incluye el caso PC, donde
+// arranca con todos los años ya cargados). Debe usarse con 'await' antes
+// de cualquier render que dependa de ese año — ver applyFilters()/
+// ejecutarComparacion().
+async function asegurarAnioCargado(anio){
+  anio = +anio;
+  if(!anio || ANIOS_CARGADOS.has(anio)) return;
+  if(_cargaAnioEnCurso){ await _cargaAnioEnCurso; if(ANIOS_CARGADOS.has(anio)) return; }
+  _cargaAnioEnCurso = (async () => {
+    mostrarCargandoAnio(anio);
+    try{
+      const url = `${AUTH_ORIGIN}/data_${anio}.json`;
+      const resp = await fetch(url, {cache:'no-store', credentials:'include'});
+      if(resp.status === 401){ mostrarLogin(); throw new Error('Sesión vencida'); }
+      if(!resp.ok) throw new Error(`HTTP ${resp.status} al descargar data_${anio}.json`);
+      const nuevo = await resp.json();
+      fusionarAnioEnLiveData(nuevo);
+      ANIOS_CARGADOS.add(anio);
+    } finally {
+      ocultarCargandoAnio();
+    }
+  })();
+  try{ await _cargaAnioEnCurso; } finally { _cargaAnioEnCurso = null; }
+}
+
+// Fusiona el 'meta'+'agg' de un año adicional dentro de LIVE_DATA ya
+// cargado. Replica DELIBERADAMENTE las mismas reglas que build_combined_json()
+// en generar_json.py (el que arma data_todos.json en el servidor) para que
+// el resultado en memoria sea idéntico a como quedaría el combinado real:
+//  - agg: unión de claves de período (sin colisión entre años).
+//  - years/periods/months/pay_types: unión de conjuntos.
+//  - feriados: se queda con el catálogo del año más reciente fusionado (no
+//    se combinan — todos vienen del mismo config_fimovit.xlsx).
+//  - comercial: por sistema, se queda con la entrada de fecha_post_comercial
+//    más reciente.
+//  - day_detail: unión por fecha (sin el recorte a los últimos N días que
+//    hace el combinado del servidor — aquí solo se fusionan 1-2 años
+//    extra, no todos, así que no hace falta para no explotar de tamaño).
+//  - operadores/corredores: fusión por 'key' — years/months/periods como
+//    unión, total_rows sumado, y 'lineas' como UNIÓN (mismo bugfix del
+//    2026-08-27 en generar_json.py: si 'lineas' no se fusiona, la tabla
+//    "Fichas — Horas de Servicio" vuelve a excluir fichas silenciosamente
+//    para corredores con historial en varios años).
+//  - flotilla_fichas_roster / flotilla_fichas_roster_corredor: unión por
+//    clave (mismo criterio que 'lineas').
+function fusionarAnioEnLiveData(nuevo){
+  if(!LIVE_DATA){ LIVE_DATA = nuevo; return; } // no debería pasar, pero por seguridad
+  const bm = LIVE_DATA.meta, nm = nuevo.meta || {};
+  const nAgg = nuevo.agg || {};
+
+  Object.assign(LIVE_DATA.agg, nAgg);
+
+  const unionOrdenada = (a, b) => [...new Set([...(a||[]), ...(b||[])])].sort();
+  bm.years      = unionOrdenada(bm.years, nm.years).sort((a,b)=>a-b);
+  bm.periods    = unionOrdenada(bm.periods, nm.periods);
+  bm.months     = [...new Set((bm.periods||[]).map(p=>+p.split('-')[1]))].sort((a,b)=>a-b);
+  bm.pay_types  = unionOrdenada(bm.pay_types, nm.pay_types);
+  bm.has_stigo  = !!(bm.has_stigo || nm.has_stigo);
+  bm.total_rows = (bm.total_rows||0) + (nm.total_rows||0);
+
+  if(nm.feriados && nm.feriados.length) bm.feriados = nm.feriados;
+
+  const comercialPorSk = {};
+  [...(bm.comercial||[]), ...(nm.comercial||[])].forEach(c=>{
+    const prev = comercialPorSk[c.sistema_key];
+    if(!prev || (c.fecha_post_comercial||'') >= (prev.fecha_post_comercial||'')){
+      comercialPorSk[c.sistema_key] = c;
+    }
+  });
+  bm.comercial = Object.values(comercialPorSk);
+
+  bm.day_detail = { ...(bm.day_detail||{}), ...(nm.day_detail||{}) };
+
+  ['flotilla_fichas_roster', 'flotilla_fichas_roster_corredor'].forEach(campo=>{
+    const merged = {...(bm[campo]||{})};
+    const nuevoMapa = nm[campo] || {};
+    Object.keys(nuevoMapa).forEach(k=>{
+      merged[k] = unionOrdenada(merged[k], nuevoMapa[k]);
+    });
+    bm[campo] = merged;
+  });
+
+  const opsPorKey = {};
+  (bm.operadores||[]).forEach(op=>{
+    opsPorKey[op.key] = op;
+    op._corrPorKey = {};
+    (op.corredores||[]).forEach(c => op._corrPorKey[c.key] = c);
+  });
+  (nm.operadores||[]).forEach(op=>{
+    let baseOp = opsPorKey[op.key];
+    if(!baseOp){
+      baseOp = {...op, corredores:[]};
+      baseOp._corrPorKey = {};
+      opsPorKey[op.key] = baseOp;
+    } else {
+      baseOp.years   = unionOrdenada(baseOp.years, op.years).sort((a,b)=>a-b);
+      baseOp.months  = unionOrdenada(baseOp.months, op.months).sort((a,b)=>a-b);
+      baseOp.periods = unionOrdenada(baseOp.periods, op.periods);
+    }
+    (op.corredores||[]).forEach(c=>{
+      let ex = baseOp._corrPorKey[c.key];
+      if(!ex){
+        ex = {...c};
+        baseOp._corrPorKey[c.key] = ex;
+        baseOp.corredores.push(ex);
+      } else {
+        ex.years      = unionOrdenada(ex.years, c.years).sort((a,b)=>a-b);
+        ex.months     = unionOrdenada(ex.months, c.months).sort((a,b)=>a-b);
+        ex.periods    = unionOrdenada(ex.periods, c.periods);
+        ex.total_rows = (ex.total_rows||0) + (c.total_rows||0);
+        ex.lineas     = unionOrdenada(ex.lineas, c.lineas);
+      }
+    });
+  });
+  bm.operadores = Object.values(opsPorKey).map(op=>{ delete op._corrPorKey; return op; });
+
+  bm.generated_at = nm.generated_at || bm.generated_at;
+}
+
 function loadJsonFile(f){
   setJStatus('', `📂 Leyendo ${f.name}...`);
   document.getElementById('jprog-wrap').style.display='block';
@@ -1577,6 +1755,35 @@ function setJStatus(cls,msg){
   el.textContent=msg;
 }
 
+// ── V6.53 — Detección de dispositivo móvil + carga por año ──
+// Safari en iOS (y, en menor medida, Chrome/Android en equipos con poca
+// RAM) mata la pestaña silenciosamente (pantalla en blanco / recarga sola,
+// SIN excepción de JS que se pueda atrapar) cuando intenta tener en
+// memoria a la vez: los bytes crudos descargados + el texto decodificado
+// (el doble de tamaño, porque JS guarda strings en UTF-16) + el objeto ya
+// parseado de 'data_todos.json' (~230 MB). En PC no pasa porque el límite
+// de memoria por pestaña es mucho mayor.
+// Detección por user-agent (no por ancho de pantalla: un iPhone en
+// horizontal o un iPad en splitview pueden superar 760px de ancho y
+// seguir siendo el mismo dispositivo con el mismo límite de memoria). El
+// caso "Macintosh" + puntos de toque cubre iPad con iPadOS 13+, que se
+// identifica como "Mac" en el user-agent.
+const ES_MOVIL = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+              || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent));
+
+// Años para los que existe un 'data_{año}.json' en el Sitio B — superset
+// fijo usado SOLO en móvil para poblar los selectores de Año antes de que
+// ese año esté realmente cargado en memoria (ver asegurarAnioCargado() más
+// abajo). Actualizar en enero, cuando generar_json.py cree el primer
+// data_{año nuevo}.json del año.
+const ANIOS_CONOCIDOS = [2024, 2025, 2026];
+
+// Años ya fusionados en LIVE_DATA. En PC arranca con todos (se carga
+// data_todos.json completo de una vez, como siempre); en móvil arranca
+// solo con el año en curso y el resto se agrega bajo demanda — ver
+// asegurarAnioCargado()/fusionarAnioEnLiveData().
+let ANIOS_CARGADOS = new Set();
+
 // ── V6.44 — Carga automática del JSON vía fetch() (Sitio B en Netlify) ──
 // Deja JSON_DATA_URL vacío ('') para desactivar la carga automática y
 // quedarte SOLO con el arrastrar-y-soltar manual de siempre (uso local u
@@ -1587,7 +1794,11 @@ function setJStatus(cls,msg){
 // JSON corrupto), se cae de vuelta a la pantalla de carga manual sin
 // romper nada — el drag-and-drop sigue funcionando exactamente igual que
 // antes, como respaldo.
-const JSON_DATA_URL = 'https://dashboard-datos-fimovit.netlify.app/data_todos.json';
+// V6.53 — en móvil, en vez del combinado de 230 MB, se descarga solo el
+// data_{año actual}.json (bastante más liviano) — ver ES_MOVIL arriba.
+const JSON_DATA_URL = ES_MOVIL
+  ? `https://dashboard-datos-fimovit.netlify.app/data_${new Date().getFullYear()}.json`
+  : 'https://dashboard-datos-fimovit.netlify.app/data_todos.json';
 
 // V6.51 — el JSON de arriba ahora está protegido en el Sitio B por una
 // Netlify Edge Function (auth-gate.js) que exige una cookie de sesión;
@@ -1799,6 +2010,10 @@ async function cargarJsonAutomatico(){
 
     setILProgress(100);
     aplicarJSONCargado(parsed, 'automático');
+    // V6.53 — registra qué año(s) quedaron cargados: en móvil, solo el año
+    // actual (el único que se descargó); en PC, todos los conocidos, ya que
+    // se descargó el combinado completo (data_todos.json) de una sola vez.
+    ANIOS_CARGADOS = ES_MOVIL ? new Set([new Date().getFullYear()]) : new Set(ANIOS_CONOCIDOS);
     const il = document.getElementById('initial-loading');
     if(il) il.style.display='none';
     generate();   // entra directo al dashboard, sin esperar clic del usuario
@@ -2244,6 +2459,15 @@ function onCorrChange(){
     periods = ci?.periods || meta.periods || [];
   }
 
+  // V6.53 — en móvil se muestran SIEMPRE los 3 años conocidos (aunque este
+  // Operador/Sistema no tenga datos cargados en memoria para alguno de
+  // ellos todavía) — de lo contrario el usuario nunca podría pedir un año
+  // que no esté ya cargado, y asegurarAnioCargado() nunca se dispararía.
+  // Si elige un año donde este Operador/Sistema en realidad no operó,
+  // updateMonthsForYear()/getPeriod() ya caen de forma segura a "sin datos"
+  // (no hay crash, ver comentarios en esas funciones).
+  if(ES_MOVIL) years = ANIOS_CONOCIDOS.slice();
+
   const selY = document.getElementById('sel-y');
   selY.innerHTML = years.map(y=>`<option value="${y}">${y}</option>`).join('');
   selY.value = years[years.length-1];
@@ -2311,10 +2535,19 @@ function onCorrChangeSilent(){
       periods = ci?.periods || meta.periods || [];
     }
   }
+  if(ES_MOVIL) years = ANIOS_CONOCIDOS.slice(); // ver comentario en onCorrChange()
   const selY = document.getElementById('sel-y');
   selY.innerHTML = years.map(y=>`<option value="${y}">${y}</option>`).join('');
   selY.value = years[years.length-1];
   updateMonthsForYear(periods);
+}
+
+// ── V6.53 — colapsar/desplegar la barra de control en móvil ──
+function toggleCtrlBar(){
+  const bar = document.getElementById('ctrl-bar');
+  const colapsada = bar.classList.toggle('colapsada');
+  const icon = document.getElementById('ctrl-bar-toggle-icon');
+  if(icon) icon.textContent = colapsada ? '▼' : '▲';
 }
 
 // ── MARK PENDING: highlight Aplicar button, dim pages ──
@@ -2325,7 +2558,25 @@ function markPending(){
 }
 
 // ── APPLY FILTERS ──
-function applyFilters(){
+// V6.53 — async: en móvil, antes de renderizar hay que asegurarse de que
+// el/los año(s) que la selección actual necesita ya estén fusionados en
+// LIVE_DATA (ver asegurarAnioCargado()). Cubre tanto la vista normal
+// (sel-y) como un Rango recién aplicado (S.rangoMes/S.rangoAnio), ya que
+// aplicarRangoUnificado() termina llamando a applyFilters().
+async function applyFilters(){
+  if(ES_MOVIL){
+    const anios = new Set();
+    if(S.view==='mes' && S.rangoMes.activo){
+      anios.add(+String(S.rangoMes.desde).slice(0,4));
+      anios.add(+String(S.rangoMes.hasta).slice(0,4));
+    } else if(S.view==='anio' && S.rangoAnio.activo){
+      anios.add(+String(S.rangoAnio.desde).slice(0,4));
+      anios.add(+String(S.rangoAnio.hasta).slice(0,4));
+    } else {
+      anios.add(+document.getElementById('sel-y').value);
+    }
+    for(const a of anios) await asegurarAnioCargado(a);
+  }
   document.getElementById('btn-apply').classList.remove('pending');
   document.getElementById('btn-apply').textContent = '✓ Aplicado';
   document.getElementById('dash').classList.remove('filters-pending');
@@ -7343,7 +7594,10 @@ function populateRangoSelMesAnio(){
       selMes.appendChild(o);
     }
   }
-  const years = [...new Set([
+  // V6.53 — en móvil, superset fijo de años conocidos (ver comentario en
+  // onCorrChange()) en vez de solo lo ya cargado, para poder disparar
+  // asegurarAnioCargado() desde rangoJumpMes()/aplicarRangoUnificado().
+  const years = ES_MOVIL ? ANIOS_CONOCIDOS.slice() : [...new Set([
     ...(AD().meta.years||[]),
     ...getAvailableDayDetailDates().map(d=>+d.slice(0,4)),
   ])].sort((a,b)=>a-b);
@@ -7527,7 +7781,7 @@ function updateRangoPill(r){
 function aplicarDiaDesdeRango(fecha){
   const [y,m] = fecha.split('-');
   const selY = document.getElementById('sel-y');
-  const years = AD().meta.years || [+y];
+  const years = ES_MOVIL ? ANIOS_CONOCIDOS.slice() : (AD().meta.years || [+y]); // ver comentario en onCorrChange()
   selY.innerHTML = years.map(yy=>`<option value="${yy}">${yy}</option>`).join('');
   selY.value = y;
   updateMonthsForYear(AD().meta.periods || []);
@@ -7613,7 +7867,8 @@ function setModo(modo){
 }
 
 function initCompSelectors(){
-  const years = AD().meta.years || [new Date().getFullYear()];
+  // V6.53 — ver comentario en onCorrChange()
+  const years = ES_MOVIL ? ANIOS_CONOCIDOS.slice() : (AD().meta.years || [new Date().getFullYear()]);
   ['A','B'].forEach(slot => {
     const selY = document.getElementById(`comp-y-${slot}`);
     const selM = document.getElementById(`comp-m-${slot}`);
@@ -7756,12 +8011,22 @@ function extraerMetricasComparacion(p){
   };
 }
 
-function ejecutarComparacion(){
+// V6.53 — async: ver comentario en applyFilters(). Aquí los años necesarios
+// salen de los descriptores A/B (mes/año exactos, o el rango desde-hasta).
+async function ejecutarComparacion(){
   const descA = leerDescriptorSlot('A');
   const descB = leerDescriptorSlot('B');
   if(!descA || !descB){
     alert('Revisa el rango elegido en el Período A y/o B (Desde debe ser anterior o igual a Hasta).');
     return;
+  }
+  if(ES_MOVIL){
+    const anios = new Set();
+    [descA, descB].forEach(d=>{
+      if(d.tipo==='mes' || d.tipo==='anio') anios.add(+d.y);
+      else { anios.add(+String(d.desde).slice(0,4)); anios.add(+String(d.hasta).slice(0,4)); }
+    });
+    for(const a of anios) await asegurarAnioCargado(a);
   }
   const pA = getPeriodParaDescriptor(descA);
   const pB = getPeriodParaDescriptor(descB);
