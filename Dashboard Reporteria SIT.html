@@ -502,12 +502,28 @@ html[data-theme="dark"] .comentario-transacciones:empty:before{color:#6b7d88;}
   /* Tablas: en vez de apretujar todas las columnas a la fuerza en la
      pantalla angosta (ilegible), se deja el ancho natural de cada tabla y
      se permite scroll horizontal solo dentro de ella — mismo patrón que
-     usan la mayoría de dashboards responsive. */
-  .rpt-table, .comp-table, .disp-table, .hm-table{
+     usan la mayoría de dashboards responsive.
+     '.hm-table' (Mapa de Calor) NO entra en este grupo — a propósito, ver
+     abajo: su diseño ya es 100% adaptable de por sí (table-layout:fixed +
+     width:100%, columnas SIEMPRE ocupan exactamente el ancho disponible,
+     nunca se salen de pantalla) y forzarle 'display:block' apagaba ese
+     comportamiento (un <table> con table-layout:fixed deja de calcular
+     columnas de ancho fijo en cuanto deja de ser 'display:table') —
+     terminaba más ancha que la pantalla en vez de mejor adaptada
+     (reportado con captura real de celular). */
+  .rpt-table, .comp-table, .disp-table{
     display:block; overflow-x:auto; -webkit-overflow-scrolling:touch;
     white-space:nowrap; max-width:100%;
   }
   .rpt-table th, .rpt-table td{white-space:nowrap;}
+  /* Mapa de Calor en celular: mismo diseño de columnas fijas de siempre,
+     solo con letra/relleno más chico y la primera columna ("Hora") más
+     angosta, para que 8 columnas quepan cómodas en una pantalla de
+     320-400px sin perder el ajuste automático. */
+  .hm-table{font-size:.6rem;}
+  .hm-table th{padding:3px 1px;font-size:.58rem;}
+  .hm-table th:first-child{width:34px;}
+  .hm-table td{padding:3px 1px;}
   /* 'Rango Horario'/'Cambio de Línea' (V6.49): la regla de arriba (misma
      especificidad, pero definida después en la hoja de estilos) le ganaba
      a '.rango-horario-cell{white-space:normal}' del diseño de escritorio y
@@ -642,7 +658,7 @@ html.pdf-export-desktop .kpi-oper .kpi-cell{flex:1 1 150px;}
     <div class="login-msg" id="login-msg"></div>
     <button type="submit" class="login-btn" id="login-btn">Iniciar sesión</button>
   </form>
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.51</b> · Compilado: 27/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.52</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <div id="initial-loading">
@@ -655,7 +671,7 @@ html.pdf-export-desktop .kpi-oper .kpi-cell{flex:1 1 150px;}
     <div class="il-status" id="il-status">📡 Conectando con el servidor de datos...</div>
     <div class="prog-wrap" id="il-prog-wrap"><div class="prog-bar" id="il-prog"></div></div>
   </div>
-  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.51</b> · Compilado: 27/08/2026 (GMT-4)</div>
+  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.52</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ SETUP ══ -->
@@ -706,7 +722,7 @@ html.pdf-export-desktop .kpi-oper .kpi-cell{flex:1 1 150px;}
        La hora siempre se expresa en GMT-4 (Rep. Dominicana, todo el año,
        sin horario de verano — Santo Domingo y Santiago de los Caballeros
        comparten el mismo huso horario). -->
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.51</b> · Compilado: 27/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.52</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ DASHBOARD ══ -->
