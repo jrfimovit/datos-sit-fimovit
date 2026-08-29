@@ -691,7 +691,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
     <div class="login-msg" id="login-msg"></div>
     <button type="submit" class="login-btn" id="login-btn">Iniciar sesión</button>
   </form>
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.55</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.56</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <div id="initial-loading">
@@ -704,7 +704,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
     <div class="il-status" id="il-status">📡 Conectando con el servidor de datos...</div>
     <div class="prog-wrap" id="il-prog-wrap"><div class="prog-bar" id="il-prog"></div></div>
   </div>
-  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.55</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.56</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ SETUP ══ -->
@@ -755,7 +755,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
        La hora siempre se expresa en GMT-4 (Rep. Dominicana, todo el año,
        sin horario de verano — Santo Domingo y Santiago de los Caballeros
        comparten el mismo huso horario). -->
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.55</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.56</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ DASHBOARD ══ -->
@@ -6547,7 +6547,19 @@ async function buildPdfFromPages(pages, paginasConReparto=[]){
     const chartMobileWidths = chartMobileEls.map(c => c.style.width);
     chartMobileEls.forEach(c => { c.style.width = ''; });
     if(window.Chart && Chart.instances){
-      Object.values(Chart.instances).forEach(c => { try{ c.resize(); }catch(e){} });
+      // V6.56 — 'resize()' solo no bastaba para gráficas CON leyenda de
+      // varios ítems (ej. 'ch-ruta', Línea/Ruta/Estación): Chart.js calcula
+      // el ancho que ocupa la leyenda (para decidir en cuántas filas
+      // envolver sus textos) en un paso de layout aparte del que mueve las
+      // barras — 'resize()' deja ese paso a medias cuando se llama de
+      // corrido para varias gráficas sin ceder el hilo entre una y otra, y
+      // el resultado quedaba con leyenda+barras diminutas en una esquina
+      // dentro de un canvas ya del ancho de escritorio (reportado desde
+      // celular con captura real: gráfica "Línea/Ruta/Estación" deforme en
+      // el PDF exportado, mientras que gráficas SIN leyenda —ej. "Medios de
+      // Pago"— sí quedaban bien). 'update()' fuerza un layout COMPLETO
+      // (leyenda, ejes y barras) en vez del recálculo parcial de 'resize()'.
+      Object.values(Chart.instances).forEach(c => { try{ c.resize(); c.update(); }catch(e){} });
     }
     await esperarRepintado();
     const canvas=await html2canvas(el,{scale:SCALE,useCORS:true,backgroundColor:'#ffffff',windowWidth:DESKTOP_W});
@@ -6624,7 +6636,7 @@ async function buildPdfFromPages(pages, paginasConReparto=[]){
     el.style.maxWidth = maxAnchoOriginalPx;
     chartMobileEls.forEach((c,ix) => { c.style.width = chartMobileWidths[ix]; });
     if(window.Chart && Chart.instances){
-      Object.values(Chart.instances).forEach(c => { try{ c.resize(); }catch(e){} });
+      Object.values(Chart.instances).forEach(c => { try{ c.resize(); c.update(); }catch(e){} }); // V6.56 — ver comentario arriba
     }
 
     const debeForzarSalto = forzarSaltoContentPx !== null;
@@ -6713,7 +6725,7 @@ async function buildPdfFromPages(pages, paginasConReparto=[]){
       if(p.style.maxWidth === '1100px') p.style.maxWidth = '';
     });
     if(window.Chart && Chart.instances){
-      Object.values(Chart.instances).forEach(c => { try{ c.resize(); }catch(e){} });
+      Object.values(Chart.instances).forEach(c => { try{ c.resize(); c.update(); }catch(e){} }); // V6.56 — ver comentario arriba
     }
   }
 }
