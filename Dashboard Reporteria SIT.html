@@ -683,7 +683,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
     <div class="login-msg" id="login-msg"></div>
     <button type="submit" class="login-btn" id="login-btn">Iniciar sesión</button>
   </form>
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.53</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.54</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <div id="initial-loading">
@@ -696,7 +696,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
     <div class="il-status" id="il-status">📡 Conectando con el servidor de datos...</div>
     <div class="prog-wrap" id="il-prog-wrap"><div class="prog-bar" id="il-prog"></div></div>
   </div>
-  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.53</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.54</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ SETUP ══ -->
@@ -747,7 +747,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
        La hora siempre se expresa en GMT-4 (Rep. Dominicana, todo el año,
        sin horario de verano — Santo Domingo y Santiago de los Caballeros
        comparten el mismo huso horario). -->
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.53</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.54</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ DASHBOARD ══ -->
@@ -1617,8 +1617,8 @@ async function asegurarAnioCargado(anio){
     mostrarCargandoAnio(anio);
     try{
       const url = `${AUTH_ORIGIN}/data_${anio}.json`;
-      const resp = await fetch(url, {cache:'no-store', credentials:'include'});
-      if(resp.status === 401){ mostrarLogin(); throw new Error('Sesión vencida'); }
+      const resp = await fetch(url, {cache:'no-store', headers: authHeaders()});
+      if(resp.status === 401){ clearAuthToken(); mostrarLogin(); throw new Error('Sesión vencida'); }
       if(!resp.ok) throw new Error(`HTTP ${resp.status} al descargar data_${anio}.json`);
       const nuevo = await resp.json();
       fusionarAnioEnLiveData(nuevo);
@@ -1801,14 +1801,34 @@ const JSON_DATA_URL = ES_MOVIL
   : 'https://dashboard-datos-fimovit.netlify.app/data_todos.json';
 
 // V6.51 — el JSON de arriba ahora está protegido en el Sitio B por una
-// Netlify Edge Function (auth-gate.js) que exige una cookie de sesión;
-// esa sesión se obtiene enviando usuario/contraseña a esta URL de login
+// Netlify Edge Function (auth-gate.js) que exige una sesión válida; esa
+// sesión se obtiene enviando usuario/contraseña a esta URL de login
 // (auth-login.js, otra Edge Function del mismo sitio) — ver mostrarLogin()/
 // intentarLogin() más abajo. Se deriva del mismo origen que JSON_DATA_URL
 // en vez de repetir el dominio a mano, para no tener que tocar dos
 // constantes si algún día cambia el Sitio B.
 const AUTH_ORIGIN = (() => { try{ return new URL(JSON_DATA_URL).origin; }catch(e){ return ''; } })();
 const LOGIN_URL = AUTH_ORIGIN ? AUTH_ORIGIN + '/api/login' : '';
+
+// V6.54 — Token de sesión vía sessionStorage + header 'Authorization', en
+// vez de una cookie cross-site. Motivo: Safari (y cualquier navegador en
+// iOS, que por requisito de Apple usa el motor de Safari) bloquea por
+// defecto TODAS las cookies de terceros desde 2020 — sin excepciones, sin
+// importar 'SameSite=None' — así que una cookie puesta por el Sitio B
+// (Netlify) para que la lea el Sitio A (GitHub Pages, un dominio distinto)
+// nunca era 100% confiable ahí, aunque en Chrome/Edge/Firefox de PC/
+// Android sí funcionara siempre (bug real reportado: en iPhone, a veces,
+// al iniciar sesión con las credenciales correctas, volvía a pedir login).
+// 'sessionStorage' además calza mejor con lo pedido originalmente ("la
+// sesión dura mientras la pestaña esté abierta"): se borra sola al cerrar
+// la pestaña, y — a diferencia de una cookie, que es del navegador entero —
+// es propia de cada pestaña (abrir el dashboard en una pestaña nueva pide
+// iniciar sesión ahí también, aunque ya estés logueado en otra).
+const AUTH_TOKEN_KEY = 'fimovit_auth_token';
+function getAuthToken(){ try{ return sessionStorage.getItem(AUTH_TOKEN_KEY) || ''; }catch(e){ return ''; } }
+function setAuthToken(t){ try{ sessionStorage.setItem(AUTH_TOKEN_KEY, t); }catch(e){} }
+function clearAuthToken(){ try{ sessionStorage.removeItem(AUTH_TOKEN_KEY); }catch(e){} }
+function authHeaders(){ const t = getAuthToken(); return t ? {'Authorization': 'Bearer '+t} : {}; }
 
 // Formatea bytes como texto legible (ej. 1536000 -> "1.5 MB") — usado solo
 // por la barra de progreso de la descarga automática (V6.48).
@@ -1871,11 +1891,12 @@ function mostrarLogin(msg){
   document.getElementById('login-user')?.focus();
 }
 // Envía usuario/contraseña a la Netlify Edge Function de login
-// (auth-login.js). 'credentials:include' es necesario para que el
-// navegador GUARDE la cookie de sesión que la función devuelve (Set-
-// Cookie), aunque sea una petición cross-origin (Sitio A → Sitio B) —
-// sin esto, la cookie simplemente se descarta. La función NUNCA revela si
-// el usuario existe o no; solo 200 (correcto) o 401 (incorrecto).
+// (auth-login.js). V6.54 — ya no manda 'credentials:include' (no depende de
+// cookies): la función devuelve el token firmado en el CUERPO de la
+// respuesta, y aquí se guarda en sessionStorage (ver setAuthToken() más
+// arriba) para mandarlo como header 'Authorization' en cada descarga de
+// JSON. La función NUNCA revela si el usuario existe o no; solo 200
+// (correcto, con token) o 401 (incorrecto).
 async function intentarLogin(usuario, password){
   const btn = document.getElementById('login-btn');
   btn.disabled = true;
@@ -1883,14 +1904,16 @@ async function intentarLogin(usuario, password){
   try{
     const resp = await fetch(LOGIN_URL, {
       method: 'POST',
-      credentials: 'include',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({usuario, password}),
     });
-    if(!resp.ok){
+    let data = {};
+    try{ data = await resp.json(); }catch(e){ /* respuesta sin cuerpo/no-JSON */ }
+    if(!resp.ok || !data.token){
       setLoginMsg('Usuario o contraseña incorrectos.', 'err');
       return false;
     }
+    setAuthToken(data.token);
     return true;
   }catch(err){
     setLoginMsg('No se pudo conectar con el servidor de acceso. Verifica tu conexión e intenta de nuevo.', 'err');
@@ -1925,23 +1948,27 @@ async function cargarJsonAutomatico(){
   }
 
   if(!JSON_DATA_URL){ mostrarSetupManual(); return; }   // carga automática desactivada — solo manual
+
+  // V6.54 — sin token guardado (primera visita, o sessionStorage se borró
+  // al cerrar la pestaña), directo a LOGIN sin ni intentar la descarga —
+  // antes se intentaba igual y se esperaba la respuesta 401 del servidor
+  // para decidirlo; ahora ya se sabe de antemano en el navegador.
+  if(!getAuthToken()){ mostrarLogin(); return; }
+
   setILStatus('📡 Conectando con el servidor de datos...');
   setILProgress(2);
   try{
-    // V6.51 — 'credentials:include' manda la cookie de sesión (creada al
-    // iniciar sesión, ver intentarLogin()) en esta descarga cross-origin —
-    // el JSON ahora vive detrás de una Netlify Edge Function (auth-gate.js)
-    // que exige esa cookie. Sin 'credentials:include' el navegador NO
-    // manda la cookie a otro origen y el servidor respondería 401 aunque
-    // el usuario sí haya iniciado sesión.
-    const resp = await fetch(JSON_DATA_URL, {cache:'no-store', credentials:'include'});
+    // V6.54 — el header 'Authorization: Bearer <token>' reemplaza a la
+    // cookie de sesión (creada al iniciar sesión, ver intentarLogin()) para
+    // esta descarga cross-origin — el JSON vive detrás de una Netlify Edge
+    // Function (auth-gate.js) que exige ese token. Ver comentario junto a
+    // AUTH_TOKEN_KEY más arriba sobre por qué se dejó de usar una cookie.
+    const resp = await fetch(JSON_DATA_URL, {cache:'no-store', headers: authHeaders()});
     if(resp.status === 401){
-      // Sin sesión válida (primera visita) o sesión vencida — a la
-      // pantalla de LOGIN, no al respaldo manual (ese es para fallas de
-      // RED/servidor, no de acceso). Sin mensaje de error: en la primera
-      // visita nunca hubo sesión que "venciera", así que un mensaje de
-      // error ahí solo confundiría — el formulario en blanco ya es
-      // suficientemente claro (inicia sesión para continuar).
+      // Sin sesión válida (token vencido, o alguien cambió AUTH_SECRET en
+      // el servidor) — a la pantalla de LOGIN, no al respaldo manual (ese
+      // es para fallas de RED/servidor, no de acceso).
+      clearAuthToken();
       mostrarLogin();
       return;
     }
