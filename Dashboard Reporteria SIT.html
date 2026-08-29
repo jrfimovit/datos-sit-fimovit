@@ -510,8 +510,16 @@ html[data-theme="dark"] .comentario-transacciones:empty:before{color:#6b7d88;}
      comportamiento (un <table> con table-layout:fixed deja de calcular
      columnas de ancho fijo en cuanto deja de ser 'display:table') —
      terminaba más ancha que la pantalla en vez de mejor adaptada
-     (reportado con captura real de celular). */
-  .rpt-table, .comp-table, .disp-table{
+     (reportado con captura real de celular).
+     ':not(.solo-autobus)' (V6.55) — sin esto, esta regla (misma
+     especificidad que '.solo-autobus{display:none}' de arriba, pero
+     definida DESPUÉS en la hoja de estilos) le ganaba y reactivaba
+     'display:block' en la tabla "Fichas — Horas de Servicio" aunque
+     renderFichasServicio() la hubiera ocultado a propósito (sin Operador
+     de autobús seleccionado) — solo pasaba en celular porque en PC este
+     bloque @media nunca se activa. Mismo arreglo que ya se le dio a la
+     versión "pdf-export-desktop" de esta regla, aplicado aquí también. */
+  .rpt-table:not(.solo-autobus), .comp-table, .disp-table{
     display:block; overflow-x:auto; -webkit-overflow-scrolling:touch;
     white-space:nowrap; max-width:100%;
   }
@@ -683,7 +691,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
     <div class="login-msg" id="login-msg"></div>
     <button type="submit" class="login-btn" id="login-btn">Iniciar sesión</button>
   </form>
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.54</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.55</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <div id="initial-loading">
@@ -696,7 +704,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
     <div class="il-status" id="il-status">📡 Conectando con el servidor de datos...</div>
     <div class="prog-wrap" id="il-prog-wrap"><div class="prog-bar" id="il-prog"></div></div>
   </div>
-  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.54</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.55</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ SETUP ══ -->
@@ -747,7 +755,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
        La hora siempre se expresa en GMT-4 (Rep. Dominicana, todo el año,
        sin horario de verano — Santo Domingo y Santiago de los Caballeros
        comparten el mismo huso horario). -->
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.54</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.55</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ DASHBOARD ══ -->
