@@ -691,7 +691,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
     <div class="login-msg" id="login-msg"></div>
     <button type="submit" class="login-btn" id="login-btn">Iniciar sesión</button>
   </form>
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.56</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.57</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <div id="initial-loading">
@@ -704,7 +704,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
     <div class="il-status" id="il-status">📡 Conectando con el servidor de datos...</div>
     <div class="prog-wrap" id="il-prog-wrap"><div class="prog-bar" id="il-prog"></div></div>
   </div>
-  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.56</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer" id="il-version-footer">FIMOVIT Dashboard · <b>V6.57</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ SETUP ══ -->
@@ -755,7 +755,7 @@ html[data-theme="dark"] .ctrl-bar-toggle-btn{color:#dbe4ea; border-bottom-color:
        La hora siempre se expresa en GMT-4 (Rep. Dominicana, todo el año,
        sin horario de verano — Santo Domingo y Santiago de los Caballeros
        comparten el mismo huso horario). -->
-  <div class="version-footer">FIMOVIT Dashboard · <b>V6.56</b> · Compilado: 28/08/2026 (GMT-4)</div>
+  <div class="version-footer">FIMOVIT Dashboard · <b>V6.57</b> · Compilado: 28/08/2026 (GMT-4)</div>
 </div>
 
 <!-- ══ DASHBOARD ══ -->
@@ -1944,6 +1944,18 @@ document.getElementById('login-form')?.addEventListener('submit', async (ev) => 
 });
 
 async function cargarJsonAutomatico(){
+  // V6.57 — el HTML "embebido" (generado con --embed en generar_json.py,
+  // para uso offline: ya trae los datos incluidos en DEMO_DATA y no se
+  // publica en Sitio A ni Sitio B) activa EMBEDDED_MODE=true y ya mostró el
+  // dashboard directamente unas líneas más abajo (ver 'if(EMBEDDED_MODE)'
+  // al final del script). Sin este corte, esta función igual se ejecutaba
+  // al disparar DOMContentLoaded (está registrada más abajo sin condición)
+  // y, como el embebido conserva el mismo JSON_DATA_URL que el HTML
+  // normal, terminaba mostrando la pantalla de LOGIN encima del dashboard
+  // que se acababa de abrir — un archivo pensado para verse sin conexión
+  // ni sesión no debe depender de ninguna de las dos.
+  if(EMBEDDED_MODE) return;
+
   // Copia el logo desde la tarjeta de Config (ver '#s-head-logo' en
   // '#setup') hacia la pantalla de carga inicial Y la de login, para no
   // duplicar la imagen embebida (base64, ~45 KB) más veces en el archivo.
